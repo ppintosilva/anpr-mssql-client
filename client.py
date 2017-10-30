@@ -27,10 +27,10 @@ image_name = "beeven/docker-sqlcmd"
 ###############################################
 
 @click.group()
-def sqlcmd():
+def sqlcmd(help="A command line interface for querying the anpr mssql database server"):
     pass
 
-@sqlcmd.command('pull-image')
+@sqlcmd.command('pull-image', help="Pull the sqlcmd docker image")
 def pull():
     client = docker.from_env()
     if not client.images.list(name = image_name):
@@ -40,16 +40,17 @@ def pull():
     else:
         click.echo("Skipped: image exists")
 
-@sqlcmd.command('query')
+@sqlcmd.command('query', help="Query the anpr database server")
 @click.option('--password', '-p',
 	     type = str,
 	     envvar = 'SQL_PASSWORD',
-	     required = True)
-@click.option('--query-string', '-q', type = str, default = None, required = False)
-@click.option('--output-file', '-o', type = str, default = None, required = False)
-@click.option('--prune/--no-prune', default=True, required = False)
-@click.option('--query-file', '-i', type = str, default = None, required = False)
-@click.option('--host', '-t', type = str, default = '127.0.0.1', required = False)
+	     required = True,
+             help="Database password. Read from the environment variable 'SQL_PASSWORD'")
+@click.option('--query-string', '-q', type = str, default = None, required = False, help="The sql query as a string")
+@click.option('--output-file', '-o', type = str, default = None, required = False, help="Write results to output file")
+@click.option('--prune/--no-prune', default=True, required = False, help="Remove trailing whitespace, dash separator, etc.")
+@click.option('--query-file', '-i', type = str, default = None, required = False, help="Read the query from file")
+@click.option('--host', '-t', type = str, default = '127.0.0.1', required = False, help="Database server IP address")
 def query_anpr(query_string, output_file, query_file, password, prune, host):
     client = docker.from_env()
     try:
@@ -60,7 +61,7 @@ def query_anpr(query_string, output_file, query_file, password, prune, host):
     except docker.errors.APIError as e2:
         click.echo(e2)
         sys.exit(2)
-    
+
     if query_string:
         query = query_string
     elif query_file:
