@@ -1,14 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-
-This is a awesome python script!
-
-"""
-
 import click
 import docker
 import os
+import sys
 
 ###############################################
 #
@@ -39,7 +34,7 @@ def sqlcmd():
 def pull():
     client = docker.from_env()
     if not client.images.list(name = image_name):
-        clickecho("Pulling " + container_image + " docker image, this may take a while...")
+        click.echo("Pulling " + image_name + " docker image, this may take a while...")
         client.images.pull(image_name, tag = "latest")
         click.echo("Done")
     else:
@@ -48,18 +43,31 @@ def pull():
 @sqlcmd.command('query')
 @click.option('--password', '-p',
 	     type = str,
-	     envvar = 'SQL_SERVER_PASSWORD',
+	     envvar = 'SQL_PASSWORD',
 	     required = True)
 @click.option('--query-string', '-q', type = str, default = None, required = False)
 @click.option('--output-file', '-o', type = str, default = None, required = False)
 @click.option('--prune/--no-prune', default=True, required = False)
-@click.argument('sql-file', type = str, default = None, required = False)
-def query_anpr(query_string, output_file, sql_file, password, prune):
+@click.option('--query-file', '-i', type = str, default = None, required = False)
+@click.option('--host', '-t', type = str, default = '127.0.0.1', required = False)
+def query_anpr(query_string, output_file, query_file, password, prune, host):
     client = docker.from_env()
+    try:
+        client.images.get(image_name)
+    except docker.errors.ImageNotFound as e1:
+        click.echo(e1)
+        sys.exit(1)
+    except docker.errors.APIError as e2:
+        click.echo(e2)
+        sys.exit(2)
+    
     if query_string:
         query = query_string
-    elif sql_file:
-        with open(sql_file, "r") as ifile:
+    elif query_file:
+        if not os.path.isfile(query_file):
+            click.echo("Input file does not exist")
+            sys.exit(1)
+        with open(query_file, "r") as ifile:
             query = ifile.read()
     else:
         click.echo("You must specify a query either through " +
@@ -68,18 +76,22 @@ def query_anpr(query_string, output_file, sql_file, password, prune):
                     "Run again with --help for usage.")
         return
     try:
-        logs = client.containers.run(image = image_name,
-                                     remove = True,
-                                     command = [
-                                          "-U", "sa",
-                                          "-P", password,
-                                          "-S", "172.17.0.2,1433",
-                                          "-W", "-s", ",",
-                                          "-Q", query])
-	# Remove 1st and 3rd lines ("Using DB context blabla" and header separator: a dashed line)
+        prune_options = ["-W", "-s", ",", "-m", "1"]
+        command = ["-U", "sa", "-P", password,
+                   "-S", ",".join([host, "1433"]),
+                   "-Q", query]
+        if prune:
+            command.extend(prune_options)
+        logs = client.containers.run(remove = True,
+                                     image = image_name,
+                                     network_mode = "host",
+                                     command = command)
+	# Remove dashed line - 2nd line
         if prune:
             lines = logs.split("\n")
-	    logs = lines[0] + lines[2:(len(lines)-1)]
+            del lines[1]
+            lines = filter(None, lines)
+            logs = "\n".join(lines)
         if output_file:
             with open(output_file, 'w') as ofile:
                 ofile.write(logs)
