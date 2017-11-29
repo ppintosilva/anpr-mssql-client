@@ -32,13 +32,15 @@ def sqlcmd(help="A command line interface for querying the anpr mssql database s
 
 @sqlcmd.command('pull-image', help="Pull the sqlcmd docker image")
 def pull():
-    client = docker.from_env()
-    if not client.images.list(name = image_name):
+    client = docker.APIClient(base_url='unix://var/run/docker.sock')
+    if not client.images(name = image_name):
         click.echo("Pulling " + image_name + " docker image, this may take a while...")
-        client.images.pull(image_name, tag = "latest")
+        iterator = client.pull(image_name, tag = "latest", stream = True)
+        printStream(iterator)
         click.echo("Done")
     else:
         click.echo("Skipped: image exists")
+
 
 @sqlcmd.command('query', help="Query the anpr database server")
 @click.option('--password', '-p',
@@ -53,6 +55,7 @@ def pull():
 @click.option('--host', '-t', type = str, default = '127.0.0.1', required = False, help="Database server IP address")
 def query_anpr(query_string, output_file, query_file, password, prune, host):
     client = docker.from_env()
+    # Get image, otherwise exit
     try:
         client.images.get(image_name)
     except docker.errors.ImageNotFound as e1:
@@ -62,6 +65,7 @@ def query_anpr(query_string, output_file, query_file, password, prune, host):
         click.echo(e2)
         sys.exit(2)
 
+    # Get query from parameters/options
     if query_string:
         query = query_string
     elif query_file:
@@ -76,32 +80,64 @@ def query_anpr(query_string, output_file, query_file, password, prune, host):
                     "file containing a sql query (see directory queries). " +
                     "Run again with --help for usage.")
         return
+    # Build command string list
+    command = ["-U", "sa", "-P", password,
+               "-S", ",".join([host, "1433"]),
+               "-Q", query]
+    if prune:
+        command.extend(["-W", "-s", ",", "-m", "1"])
+    # Run container 
     try:
-        prune_options = ["-W", "-s", ",", "-m", "1"]
-        command = ["-U", "sa", "-P", password,
-                   "-S", ",".join([host, "1433"]),
-                   "-Q", query]
-        if prune:
-            command.extend(prune_options)
-        logs = client.containers.run(remove = True,
-                                     image = image_name,
-                                     network_mode = "host",
-                                     command = command)
-	# Remove dashed line - 2nd line
-        if prune:
-            lines = logs.split("\n")
-            del lines[1]
-            lines = filter(None, lines)
-            logs = "\n".join(lines)
+        container = client.containers.run(image = image_name,
+                                          network_mode = "host",
+                                          command = command,
+                                          detach = True)
+        # Container logs
+        response_iterator = container.logs(stdout = True,
+                                           stream = True,
+                                           timestamps = False,
+                                           tail = False)
+        # Iterate through stream of logs
         if output_file:
-            with open(output_file, 'w') as ofile:
-                ofile.write(logs)
+            to = 'file'
         else:
-            click.echo(logs)
+            to = 'stdout'
+        printStream(response_iterator, to, output_file)
+    
+        # Kill and remove container
+        container.stop()
+        container.remove()
+
+    # Exceptions
     except docker.errors.APIError as e:
         click.echo(e)
     except docker.errors.ContainerError as e2:
         click.echo(e2)
 
+    # If written to file and prune is enabled, remove second line using awk
+    if prune and output_file:
+        os.system("sed -i '2d' {}".format(output_file))
+    
+
+# Helper function
+def printStream(iterator, to = 'stdout', filename = 'tmp.csv'):
+    if to == 'stdout':
+        out = sys.stdout
+    elif to == 'stderr':
+        out = sys.stderr
+    elif to == 'file':
+        out = open(filename, 'w')
+    # Iterate stream of text/data   
+    try:
+        while True:
+            out.write(next(iterator))
+            out.flush()
+    except StopIteration:
+        pass
+    finally:
+        del iterator
+        if to == 'file':
+            out.close()
+    
 if __name__ == "__main__":
     sqlcmd()
