@@ -86,7 +86,7 @@ def query_anpr(query_string, output_file, query_file, password, prune, host):
                "-Q", query]
     if prune:
         command.extend(["-W", "-s", ",", "-m", "1"])
-    # Run container 
+    # Run container
     try:
         container = client.containers.run(image = image_name,
                                           network_mode = "host",
@@ -103,7 +103,7 @@ def query_anpr(query_string, output_file, query_file, password, prune, host):
         else:
             to = 'stdout'
         printStream(response_iterator, to, output_file)
-    
+
         # Kill and remove container
         container.stop()
         container.remove()
@@ -117,7 +117,7 @@ def query_anpr(query_string, output_file, query_file, password, prune, host):
     # If written to file and prune is enabled, remove second line using awk
     if prune and output_file:
         os.system("sed -i '2d' {}".format(output_file))
-    
+
 
 # Helper function
 def printStream(iterator, to = 'stdout', filename = 'tmp.csv'):
@@ -127,7 +127,7 @@ def printStream(iterator, to = 'stdout', filename = 'tmp.csv'):
         out = sys.stderr
     elif to == 'file':
         out = open(filename, 'w')
-    # Iterate stream of text/data   
+    # Iterate stream of text/data
     try:
         while True:
             out.write(next(iterator))
@@ -138,6 +138,6 @@ def printStream(iterator, to = 'stdout', filename = 'tmp.csv'):
         del iterator
         if to == 'file':
             out.close()
-    
+
 if __name__ == "__main__":
     sqlcmd()
