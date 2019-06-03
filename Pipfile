@@ -8,6 +8,7 @@ verify_ssl = true
 [packages]
 docker = "*"
 click = "*"
+jinja2 = "*"
 
 [requires]
 python_version = "3.7"
