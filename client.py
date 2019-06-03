@@ -1,29 +1,21 @@
-#!/usr/bin/env python
+# client.py
+#-------------------------------------------------------------------------------
+# Easily query your ANPR Microsoft SQL-Server database
+# as a docker container on Linux (Debian)
+#-------------------------------------------------------------------------------
+# Author: Pedro Pinto da Silva
+# Version: v2.0.0
+# License: MIT
+#-------------------------------------------------------------------------------
 # -*- coding: utf-8 -*-
+
 import click
 import docker
 import os
 import sys
 
 ###############################################
-#
-#
-#   Global Variables / Config
-#
-#
-###############################################
-
 image_name = "beeven/docker-sqlcmd"
-
-###############################################
-#
-#
-#   Helpers
-#
-#
-###############################################
-
-
 ###############################################
 
 @click.group()
@@ -33,10 +25,16 @@ def sqlcmd(help="A command line interface for querying the anpr mssql database s
 @sqlcmd.command('pull-image', help="Pull the sqlcmd docker image")
 def pull():
     client = docker.APIClient(base_url='unix://var/run/docker.sock')
+
     if not client.images(name = image_name):
         click.echo("Pulling " + image_name + " docker image, this may take a while...")
-        iterator = client.pull(image_name, tag = "latest", stream = True)
-        printStream(iterator)
+
+        for line in client.pull(image_name,
+                                tag = "latest",
+                                stream = True,
+                                decode = True):
+                print(line)
+
         click.echo("Done")
     else:
         click.echo("Skipped: image exists")
@@ -76,9 +74,9 @@ def query_anpr(query_string, output_file, query_file, password, prune, host):
             query = ifile.read()
     else:
         click.echo("You must specify a query either through " +
-                    "the -q option or by passing the path to a " +
-                    "file containing a sql query (see directory queries). " +
-                    "Run again with --help for usage.")
+                   "the -q option or by passing the path to a " +
+                   "file containing a sql query (see directory queries). " +
+                   "Run again with --help for usage.")
         return
     # Build command string list
     command = ["-U", "sa", "-P", password,
@@ -93,16 +91,19 @@ def query_anpr(query_string, output_file, query_file, password, prune, host):
                                           command = command,
                                           detach = True)
         # Container logs
-        response_iterator = container.logs(stdout = True,
-                                           stream = True,
-                                           timestamps = False,
-                                           tail = False)
+        log_stream = container.logs(stdout = True,
+                                    stream = True,
+                                    timestamps = False,
+                                    tail = False)
+
         # Iterate through stream of logs
         if output_file:
-            to = 'file'
+            with open(output_file, "w") as f:
+                for line in log_stream:
+                    f.write(line.decode("utf-8"))
         else:
-            to = 'stdout'
-        printStream(response_iterator, to, output_file)
+            for line in log_stream:
+                print(line.decode("utf-8"))
 
         # Kill and remove container
         container.stop()
@@ -114,30 +115,10 @@ def query_anpr(query_string, output_file, query_file, password, prune, host):
     except docker.errors.ContainerError as e2:
         click.echo(e2)
 
-    # If written to file and prune is enabled, remove second line using awk
+    # If written to file and prune is enabled, remove second line using sed
     if prune and output_file:
         os.system("sed -i '2d' {}".format(output_file))
 
-
-# Helper function
-def printStream(iterator, to = 'stdout', filename = 'tmp.csv'):
-    if to == 'stdout':
-        out = sys.stdout
-    elif to == 'stderr':
-        out = sys.stderr
-    elif to == 'file':
-        out = open(filename, 'w')
-    # Iterate stream of text/data
-    try:
-        while True:
-            out.write(next(iterator))
-            out.flush()
-    except StopIteration:
-        pass
-    finally:
-        del iterator
-        if to == 'file':
-            out.close()
 
 if __name__ == "__main__":
     sqlcmd()

@@ -102,3 +102,6 @@ ENV/
 
 #
 Pipfile.lock
+.pass
+*.csv
+output/
