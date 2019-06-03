@@ -9,14 +9,15 @@
 #-------------------------------------------------------------------------------
 # -*- coding: utf-8 -*-
 
-import click
-import docker
 import os
 import sys
+import click
+import docker
+from jinja2 import Template
 
-###############################################
+#-------------------------------------------------------------------------------
 image_name = "beeven/docker-sqlcmd"
-###############################################
+#-------------------------------------------------------------------------------
 
 @click.group()
 def sqlcmd(help="A command line interface for querying the anpr mssql database server"):
@@ -39,19 +40,73 @@ def pull():
     else:
         click.echo("Skipped: image exists")
 
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 
-@sqlcmd.command('query', help="Query the anpr database server")
-@click.option('--password', '-p',
-	     type = str,
-	     envvar = 'SQL_PASSWORD',
-	     required = True,
-             help="Database password. Read from the environment variable 'SQL_PASSWORD'")
-@click.option('--query-string', '-q', type = str, default = None, required = False, help="The sql query as a string")
-@click.option('--output-file', '-o', type = str, default = None, required = False, help="Write results to output file")
-@click.option('--prune/--no-prune', default=True, required = False, help="Remove trailing whitespace, dash separator, etc.")
-@click.option('--query-file', '-i', type = str, default = None, required = False, help="Read the query from file")
-@click.option('--host', '-t', type = str, default = '127.0.0.1', required = False, help="Database server IP address")
-def query_anpr(query_string, output_file, query_file, password, prune, host):
+@sqlcmd.command(
+    'query',
+    help="Query the anpr database server"
+)
+@click.option(
+    '--password', '-p',
+	type = str,
+	envvar = 'SQL_PASSWORD',
+	required = True,
+    help="Database password. Read from the environment variable 'SQL_PASSWORD'"
+)
+@click.option(
+    '--query-string', '-q',
+    type = str,
+    default = None,
+    required = False,
+    help="The sql query as a string"
+)
+@click.option(
+    '--output-file', '-o',
+    type = str,
+    default = None,
+    required = False,
+    help="Write results to output file"
+)
+@click.option(
+    '--prune/--no-prune',
+    default=True,
+    required = False,
+    help="Remove trailing whitespace, dash separator, etc."
+)
+@click.option(
+    '--query-file', '-i',
+    type = str,
+    default = None,
+    required = False,
+    help="Read the query from file"
+)
+@click.option(
+    '--host', '-t',
+    type = str,
+    default = '127.0.0.1',
+    required = False,
+    help="Database server IP address"
+)
+@click.option(
+    '--key-value', '-k',
+    nargs=2,
+    type=(str,str),
+    multiple = True,
+    required = False
+)
+#-------------------------------------------------------------------------------
+def query_anpr(query_string, output_file, query_file,
+               password, prune, host, key_value):
+#-------------------------------------------------------------------------------
     client = docker.from_env()
     # Get image, otherwise exit
     try:
@@ -71,7 +126,9 @@ def query_anpr(query_string, output_file, query_file, password, prune, host):
             click.echo("Input file does not exist")
             sys.exit(1)
         with open(query_file, "r") as ifile:
-            query = ifile.read()
+            query = Template(ifile.read())
+            query = query.render(dict(key_value))
+
     else:
         click.echo("You must specify a query either through " +
                    "the -q option or by passing the path to a " +
@@ -119,6 +176,9 @@ def query_anpr(query_string, output_file, query_file, password, prune, host):
     if prune and output_file:
         os.system("sed -i '2d' {}".format(output_file))
 
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 
 if __name__ == "__main__":
     sqlcmd()
