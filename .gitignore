@@ -101,7 +101,6 @@ ENV/
 .mypy_cache/
 
 #
-Pipfile.lock
 .pass
 *.csv
 output/
