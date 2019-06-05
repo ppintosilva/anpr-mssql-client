@@ -8,8 +8,8 @@ SELECT
     c.Latitude as latitude,
     c.longitude as longitude,
     c.Commissioned as is_commissioned,
-    t.Description as type,
-    c.CommissionedDate as operating_since
+    t.Description as type
+    
 FROM
     cfg.Cameras as c
 INNER JOIN
