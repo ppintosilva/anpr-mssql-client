@@ -4,12 +4,12 @@ SET NOCOUNT ON
 
 SELECT
     count(d.Timestamp) as observations,
-    CAST(MONTH(d.Timestamp) AS VARCHAR(2)) + '-' + CAST(YEAR(d.Timestamp) AS VARCHAR(4)) AS sdate
+    CAST(MONTH(d.Timestamp) AS VARCHAR(2)) + '/' + CAST(YEAR(d.Timestamp) AS VARCHAR(4))
 
 FROM
     data.NumberPlateData as d
 
 GROUP BY
-    sdate
+    CAST(MONTH(d.Timestamp) AS VARCHAR(2)) + '/' + CAST(YEAR(d.Timestamp) AS VARCHAR(4))
 
 GO
