@@ -9,6 +9,7 @@ verify_ssl = true
 docker = "*"
 click = "*"
 jinja2 = "*"
+anpr-mssql-client = {editable = true,path = "."}
 
 [requires]
 python_version = "3.7"
